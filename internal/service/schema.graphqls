@@ -1,0 +1,32 @@
+# internal/service/schema.graphqls
+type Post {
+    id: ID!
+    title: String!
+    content: String!
+    commentsEnabled: Boolean!
+    createdAt: String!
+    comments(limit: Int = 10, offset: Int = 0): [Comment!]!
+}
+
+type Comment {
+    id: ID!
+    content: String!
+    parentId: ID
+    createdAt: String!
+    children(limit: Int = 10, offset: Int = 0): [Comment!]!
+}
+
+type Query {
+    posts(limit: Int = 10, offset: Int = 0): [Post!]!
+    post(id: ID!): Post
+}
+
+type Mutation {
+    createPost(title: String!, content: String!): Post!
+    createComment(postId: ID!, parentId: ID, content: String!): Comment!
+    toggleComments(postId: ID!, enable: Boolean!): Post!
+}
+
+type Subscription {
+    commentAdded(postId: ID!): Comment!
+}
