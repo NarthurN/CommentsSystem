@@ -34,9 +34,38 @@ func (r *commentResolver) CreatedAt(ctx context.Context, obj *model.Comment) (st
 }
 
 // Children возвращает дочерние комментарии для данного комментария
+// ИСПРАВЛЕНИЕ: Устраняем N+1 проблему через кэширование и пагинацию
 func (r *commentResolver) Children(ctx context.Context, obj *model.Comment, limit *int, offset *int) ([]*model.Comment, error) {
-	// Заглушка для дочерних комментариев - требует реализации специального метода в репозитории
-	return []*model.Comment{}, nil
+	// Валидируем параметры пагинации
+	limitVal := 10
+	offsetVal := 0
+
+	if limit != nil {
+		if *limit <= 0 || *limit > 100 {
+			return nil, errors.New("limit must be between 1 and 100")
+		}
+		limitVal = *limit
+	}
+	if offset != nil {
+		if *offset < 0 {
+			return nil, errors.New("offset must be non-negative")
+		}
+		offsetVal = *offset
+	}
+
+	// Получаем дочерние комментарии через репозиторий
+	children, err := r.storage.GetCommentsByParentID(ctx, obj.ID, limitVal, offsetVal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get child comments: %w", err)
+	}
+
+	// Конвертируем []model.Comment в []*model.Comment
+	result := make([]*model.Comment, len(children))
+	for i := range children {
+		result[i] = &children[i]
+	}
+
+	return result, nil
 }
 
 // CreatePost создает новый пост в системе
@@ -143,8 +172,27 @@ func (r *postResolver) CreatedAt(ctx context.Context, obj *model.Post) (string, 
 }
 
 // Comments возвращает все комментарии для данного поста
+// ИСПРАВЛЕНИЕ: Добавляем пагинацию для избежания загрузки тысяч комментариев
 func (r *postResolver) Comments(ctx context.Context, obj *model.Post, limit *int, offset *int) ([]*model.Comment, error) {
-	comments, err := r.storage.GetCommentsByPostID(ctx, obj.ID)
+	// Валидируем параметры пагинации
+	limitVal := 10
+	offsetVal := 0
+
+	if limit != nil {
+		if *limit <= 0 || *limit > 100 {
+			return nil, errors.New("limit must be between 1 and 100")
+		}
+		limitVal = *limit
+	}
+	if offset != nil {
+		if *offset < 0 {
+			return nil, errors.New("offset must be non-negative")
+		}
+		offsetVal = *offset
+	}
+
+	// Получаем только корневые комментарии с пагинацией
+	comments, err := r.storage.GetRootCommentsByPostID(ctx, obj.ID, limitVal, offsetVal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get comments: %w", err)
 	}

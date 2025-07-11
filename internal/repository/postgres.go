@@ -362,6 +362,104 @@ func (s *PostgresStorage) GetCommentsByPostID(ctx context.Context, postID uuid.U
 	return result, nil
 }
 
+// GetRootCommentsByPostID получает только корневые комментарии с пагинацией
+// ПРОИЗВОДИТЕЛЬНОСТЬ: Избегаем загрузки всех комментариев сразу
+func (s *PostgresStorage) GetRootCommentsByPostID(ctx context.Context, postID uuid.UUID, limit, offset int) ([]model.Comment, error) {
+	query := `
+		SELECT id, post_id, parent_id, content, created_at
+		FROM comments
+		WHERE post_id = $1 AND parent_id IS NULL
+		ORDER BY created_at ASC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := s.db.Query(ctx, query, postID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root comments: %w", err)
+	}
+	defer rows.Close()
+
+	var comments []*repoModel.CommentDB
+	for rows.Next() {
+		var commentDB repoModel.CommentDB
+		err := rows.Scan(
+			&commentDB.ID,
+			&commentDB.PostID,
+			&commentDB.ParentID,
+			&commentDB.Content,
+			&commentDB.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan comment: %w", err)
+		}
+		comments = append(comments, &commentDB)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	// Конвертируем в доменные модели
+	domainComments := s.commentConverter.ToDomainModels(comments)
+
+	// Конвертируем указатели в значения
+	result := make([]model.Comment, len(domainComments))
+	for i, comment := range domainComments {
+		result[i] = *comment
+	}
+
+	return result, nil
+}
+
+// GetCommentsByParentID получает дочерние комментарии с пагинацией
+// ПРОИЗВОДИТЕЛЬНОСТЬ: Решает N+1 проблему в GraphQL children резолвере
+func (s *PostgresStorage) GetCommentsByParentID(ctx context.Context, parentID uuid.UUID, limit, offset int) ([]model.Comment, error) {
+	query := `
+		SELECT id, post_id, parent_id, content, created_at
+		FROM comments
+		WHERE parent_id = $1
+		ORDER BY created_at ASC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := s.db.Query(ctx, query, parentID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comments by parent: %w", err)
+	}
+	defer rows.Close()
+
+	var comments []*repoModel.CommentDB
+	for rows.Next() {
+		var commentDB repoModel.CommentDB
+		err := rows.Scan(
+			&commentDB.ID,
+			&commentDB.PostID,
+			&commentDB.ParentID,
+			&commentDB.Content,
+			&commentDB.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan comment: %w", err)
+		}
+		comments = append(comments, &commentDB)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	// Конвертируем в доменные модели
+	domainComments := s.commentConverter.ToDomainModels(comments)
+
+	// Конвертируем указатели в значения
+	result := make([]model.Comment, len(domainComments))
+	for i, comment := range domainComments {
+		result[i] = *comment
+	}
+
+	return result, nil
+}
+
 // GetCommentTree получает иерархическую структуру комментариев для поста
 func (s *PostgresStorage) GetCommentTree(ctx context.Context, postID uuid.UUID) ([]model.CommentTree, error) {
 	query := `

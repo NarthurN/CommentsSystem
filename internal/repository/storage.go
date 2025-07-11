@@ -76,6 +76,14 @@ type Storage interface {
 	// Возвращает плоский список комментариев, отсортированный по времени создания.
 	GetCommentsByPostID(ctx context.Context, postID uuid.UUID) ([]model.Comment, error)
 
+	// GetCommentsByParentID получает дочерние комментарии для родительского комментария с пагинацией.
+	// Решает N+1 проблему при получении иерархии комментариев в GraphQL.
+	GetCommentsByParentID(ctx context.Context, parentID uuid.UUID, limit, offset int) ([]model.Comment, error)
+
+	// GetRootCommentsByPostID получает только корневые комментарии для поста с пагинацией.
+	// Избегает загрузки всех комментариев сразу для лучшей производительности.
+	GetRootCommentsByPostID(ctx context.Context, postID uuid.UUID, limit, offset int) ([]model.Comment, error)
+
 	// GetCommentTree получает иерархическое дерево комментариев для поста.
 	// Возвращает структурированное дерево с вложенными комментариями.
 	GetCommentTree(ctx context.Context, postID uuid.UUID) ([]model.CommentTree, error)

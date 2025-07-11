@@ -30,8 +30,9 @@ go.work
 *.swo
 
 # Environment files
-#.env
-#.env.local
+.env
+.env.local
+.env.*.local
 
 # Database
 *.db

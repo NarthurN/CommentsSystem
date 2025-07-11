@@ -106,8 +106,8 @@ docker-compose up -d db
 
 3. Настройте переменные окружения:
 ```bash
-# Скопируйте пример конфигурации
-cp .env.example .env
+# Создайте .env файл из шаблона
+make init-env
 
 # Отредактируйте .env файл под ваше окружение
 # Как минимум, установите DB_DSN
@@ -268,8 +268,8 @@ make help          # Список всех команд
 | Переменная | Описание | Значение по умолчанию | Обязательная |
 |------------|----------|----------------------|--------------|
 | HTTP_ADDR | Адрес HTTP сервера | :8080 | Нет |
-| STORAGE_TYPE | Тип хранилища | postgres | Нет |
-| DB_DSN | Строка подключения к PostgreSQL | - | Да |
+| STORAGE_TYPE | Тип хранилища (`postgres`, `memory`) | postgres | Нет |
+| DB_DSN | Строка подключения к PostgreSQL | - | Да (только для postgres) |
 | LOG_LEVEL | Уровень логирования | info | Нет |
 
 ### HTTP сервер
@@ -315,7 +315,64 @@ make help          # Список всех команд
 | GRAPHQL_ENDPOINT | Путь к GraphQL API | /graphql |
 | GRAPHQL_ENABLE_INTROSPECTION | Включить интроспекцию | true |
 
-Подробное описание всех переменных можно найти в файле [.env.example](.env.example).
+Подробное описание всех переменных можно найти в файле [env.example](env.example).
+
+## Конфигурация
+
+### Централизованная система настроек
+
+Проект использует централизованную систему конфигурации через переменные окружения:
+
+1. **Создание .env файла**: `make init-env`
+2. **Загрузка конфигурации**: Автоматическая загрузка .env файла при старте приложения
+3. **Приоритет настроек**: Переменные окружения → .env файл → значения по умолчанию
+4. **Docker поддержка**: docker-compose.yml автоматически использует .env файл
+
+### Файлы конфигурации
+
+- `env.example` - шаблон с документацией всех переменных
+- `.env` - локальный файл с настройками (создается из шаблона)
+- `internal/config/config.go` - логика загрузки и валидации конфигурации
+
+### Типы хранилища
+
+Система поддерживает два типа хранилища данных:
+
+#### 🗄️ **PostgreSQL** (`STORAGE_TYPE=postgres`)
+- **Использование**: Production среда, persistent данные
+- **Требования**: DB_DSN обязателен, PostgreSQL 15+
+- **Особенности**:
+  - Persistent хранение данных
+  - Рекурсивные CTE запросы для иерархии комментариев
+  - ACID транзакции
+  - Пул соединений
+
+#### 💾 **In-Memory** (`STORAGE_TYPE=memory`)
+- **Использование**: Разработка, тестирование, демо
+- **Требования**: Не требует базы данных
+- **Особенности**:
+  - Thread-safe операции через sync.RWMutex
+  - Автоматическая генерация ID и времени
+  - Полная иерархия комментариев в памяти
+  - Каскадное удаление
+  - Данные теряются при перезапуске
+
+#### Примеры запуска:
+```bash
+# PostgreSQL
+STORAGE_TYPE=postgres DB_DSN="postgres://user:pass@localhost/db" ./app
+
+# In-Memory
+STORAGE_TYPE=memory ./app
+
+# Docker с PostgreSQL (по умолчанию)
+docker compose up
+
+# Локально с in-memory для тестирования
+make init-env
+# Отредактируйте .env: STORAGE_TYPE=memory
+make run
+```
 
 ## Архитектурные особенности
 
@@ -445,16 +502,14 @@ curl -X POST http://localhost:8080/graphql \
 
 ## 🧪 Покрытие тестами
 
-![Coverage](https://img.shields.io/badge/coverage-7.1%25-red)
-
-**Общее покрытие:** 7.1%
+**Общее покрытие:** 10.6%
 
 📊 **Детализированное покрытие по модулям:**
 
 ```
-github.com/NarthurN/CommentsSystem/cmd/app/main.go:28:					main											0.0%
-github.com/NarthurN/CommentsSystem/cmd/app/main.go:102:					initializeStorage									0.0%
-github.com/NarthurN/CommentsSystem/cmd/app/main.go:117:					waitForShutdownSignal									0.0%
+github.com/NarthurN/CommentsSystem/cmd/app/main.go:30:					main											0.0%
+github.com/NarthurN/CommentsSystem/cmd/app/main.go:108:					initializeStorage									0.0%
+github.com/NarthurN/CommentsSystem/cmd/app/main.go:133:					waitForShutdownSignal									0.0%
 github.com/NarthurN/CommentsSystem/internal/api/gqlgen_handler.go:37:			NewGQLGenHandler									75.0%
 github.com/NarthurN/CommentsSystem/internal/api/gqlgen_handler.go:63:			NewGQLGenHandlerWithConfig								100.0%
 github.com/NarthurN/CommentsSystem/internal/api/gqlgen_handler.go:80:			SetupRoutes										100.0%
@@ -506,6 +561,25 @@ github.com/NarthurN/CommentsSystem/internal/repository/converter/converter.go:14
 github.com/NarthurN/CommentsSystem/internal/repository/converter/converter.go:151:	BuildCommentTree									0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/converter/converter.go:167:	buildTree										0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/converter/converter.go:187:	ToPostWithComments									0.0%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:33:			NewMemoryStorage									100.0%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:43:			Close											87.5%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:61:			HealthCheck										100.0%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:74:			checkClosed										66.7%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:85:			CreatePost										73.7%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:144:			GetPost											87.5%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:169:			GetPosts										83.3%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:224:			UpdatePost										71.4%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:269:			DeletePost										81.8%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:296:			TogglePostComments									77.8%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:319:			CreateComment										82.1%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:395:			GetComment										0.0%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:420:			GetCommentsByPostID									92.3%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:456:			DeleteComment										75.0%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:477:			deleteCommentRecursive									100.0%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:490:			GetPostWithComments									0.0%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:525:			GetCommentTree										81.8%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:551:			buildCommentTree									87.5%
+github.com/NarthurN/CommentsSystem/internal/repository/memory.go:578:			GetCommentHierarchy									0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/model/storage_models.go:48:	TableName										0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/model/storage_models.go:53:	TableName										0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/model/storage_models.go:60:	GetSelectColumns									0.0%
@@ -515,7 +589,7 @@ github.com/NarthurN/CommentsSystem/internal/repository/model/storage_models.go:7
 github.com/NarthurN/CommentsSystem/internal/repository/model/storage_models.go:80:	GetUpdateColumns									0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/model/storage_models.go:87:	Validate										100.0%
 github.com/NarthurN/CommentsSystem/internal/repository/model/storage_models.go:101:	Validate										100.0%
-github.com/NarthurN/CommentsSystem/internal/repository/postgres.go:25:			NewPostgresStorage									66.7%
+github.com/NarthurN/CommentsSystem/internal/repository/postgres.go:25:			NewPostgresStorage									83.3%
 github.com/NarthurN/CommentsSystem/internal/repository/postgres.go:45:			Close											0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/postgres.go:51:			HealthCheck										0.0%
 github.com/NarthurN/CommentsSystem/internal/repository/postgres.go:58:			CreatePost										0.0%
@@ -775,4 +849,4 @@ github.com/NarthurN/CommentsSystem/pkg/pubsub/pubsub.go:158:				GetSubscribersCo
 github.com/NarthurN/CommentsSystem/pkg/pubsub/pubsub.go:171:				Close											100.0%
 ```
 
-*Отчет автоматически обновлен 2025-07-11 18:25:11*
+*Отчет автоматически обновлен 2025-07-11 19:04:33*

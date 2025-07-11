@@ -5,11 +5,11 @@ services:
     build: .
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
-      - HTTP_ADDR=:8080
-      - STORAGE_TYPE=postgres
+      # Переопределяем только специфичные для Docker настройки
       - DB_DSN=postgres://user:password@db:5432/postsdb?sslmode=disable
-      - LOG_LEVEL=info
     depends_on:
       db:
         condition: service_healthy

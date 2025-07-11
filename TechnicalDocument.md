@@ -510,9 +510,30 @@ ORDER BY created_at;
 | Переменная | Описание | Значение по умолчанию | Обязательная |
 |------------|----------|----------------------|--------------|
 | `HTTP_ADDR` | Адрес HTTP сервера | `:8080` | Нет |
-| `STORAGE_TYPE` | Тип хранилища | `postgres` | Нет |
-| `DB_DSN` | Строка подключения к PostgreSQL | - | Да (для postgres) |
+| `STORAGE_TYPE` | Тип хранилища (`postgres`, `memory`) | `postgres` | Нет |
+| `DB_DSN` | Строка подключения к PostgreSQL | - | Да (только для postgres) |
 | `LOG_LEVEL` | Уровень логирования | `info` | Нет |
+
+### Типы хранилища
+
+#### PostgreSQL (`STORAGE_TYPE=postgres`)
+- **Назначение**: Production-ready хранилище с persistent данными
+- **Файлы**: `internal/repository/postgres.go`, `internal/repository/postgres_test.go`
+- **Особенности**:
+  - Рекурсивные CTE запросы для иерархии комментариев
+  - ACID транзакции и foreign key constraints
+  - Connection pooling с pgxpool
+  - Оптимизированные индексы для быстрого поиска
+
+#### In-Memory (`STORAGE_TYPE=memory`)
+- **Назначение**: Разработка, тестирование, демонстрация
+- **Файлы**: `internal/repository/memory.go`, `internal/repository/memory_test.go`
+- **Особенности**:
+  - Thread-safe доступ через sync.RWMutex
+  - Полная реализация интерфейса Storage
+  - Рекурсивная иерархия комментариев в памяти
+  - Каскадное удаление данных
+  - Мгновенный запуск без внешних зависимостей
 
 ### Примеры конфигурации
 

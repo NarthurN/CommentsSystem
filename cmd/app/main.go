@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/NarthurN/CommentsSystem/internal/repository"
 	"github.com/NarthurN/CommentsSystem/internal/service"
 	"github.com/NarthurN/CommentsSystem/pkg/pubsub"
+	"github.com/joho/godotenv"
 )
 
 // Константы приложения
@@ -26,6 +28,10 @@ const (
 // main - точка входа в приложение CommentsSystem.
 // Инициализирует все компоненты, запускает HTTP сервер и обрабатывает graceful shutdown.
 func main() {
+	// Загружаем переменные окружения из .env файла (если он существует)
+	// Игнорируем ошибку, так как .env файл опционален
+	_ = godotenv.Load()
+
 	// Загружаем конфигурацию приложения из переменных окружения
 	cfg, err := config.LoadFromEnv()
 	if err != nil {
@@ -100,15 +106,25 @@ func main() {
 // initializeStorage создает и инициализирует слой хранения данных на основе конфигурации.
 // Поддерживает различные типы хранилищ и возвращает правильно настроенный интерфейс Storage.
 func initializeStorage(ctx context.Context, cfg *config.Config) (repository.Storage, error) {
+	log.Printf("Initializing storage type: %s", cfg.StorageType)
+
 	switch cfg.StorageType {
 	case "postgres":
+		log.Printf("Connecting to PostgreSQL database...")
 		storage, err := repository.NewPostgresStorage(ctx, cfg.DatabaseDSN)
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("PostgreSQL storage initialized successfully")
+		return storage, nil
+	case "memory":
+		log.Printf("Initializing in-memory storage...")
+		storage := repository.NewMemoryStorage()
+		log.Printf("In-memory storage initialized successfully")
 		return storage, nil
 	default:
-		return nil, repository.ErrUnsupportedStorageType
+		return nil, fmt.Errorf("%w: supported types are 'postgres' and 'memory', got '%s'",
+			repository.ErrUnsupportedStorageType, cfg.StorageType)
 	}
 }
 

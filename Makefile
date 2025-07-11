@@ -28,6 +28,21 @@ test-coverage:
 update-coverage:
 	@./scripts/update_coverage.sh
 
+# Создание .env файла из шаблона
+init-env:
+	@if [ ! -f .env ]; then \
+		echo "Creating .env file from template..."; \
+		cp env.example .env; \
+		echo ".env file created! Please edit it with your configuration."; \
+	else \
+		echo ".env file already exists. Remove it first if you want to recreate."; \
+	fi
+
+# Демонстрация разных типов хранилища
+demo-storage:
+	@echo "Running storage types demonstration..."
+	@./demo_storage.sh
+
 # Очистка
 clean:
 	go clean
@@ -83,6 +98,8 @@ help:
 	@echo "  test-unit      - Run only unit tests"
 	@echo "  test-coverage  - Run tests with coverage"
 	@echo "  update-coverage- Update test coverage in README.md"
+	@echo "  init-env       - Create .env file from template"
+	@echo "  demo-storage   - Demonstrate different storage types"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  docker-build   - Build Docker images"
 	@echo "  docker-up      - Start containers"
